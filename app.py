@@ -301,6 +301,27 @@ def vote(image_id):
         print(e)
         return jsonify({'error': str(e)}), 500
 
+@app.route('/images/<int:image_id>/votes', methods=['GET'])
+def get_votes(image_id):
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT SUM(vote_value) as vote_count FROM votes WHERE image_id = ?", (image_id,))
+        votes = cur.fetchone()
+        conn.close()
+        if votes['vote_count'] is None:
+            return jsonify({'vote_count': 0}), 200
+        return jsonify({'vote_count': votes['vote_count']}), 200
+
+    except sqlite3.Error as e:
+        conn.rollback()
+        conn.close()
+        print(e)
+        return jsonify({'error': str(e)}), 500
+
 # Run the app
 if __name__ == '__main__':
     create_tables()

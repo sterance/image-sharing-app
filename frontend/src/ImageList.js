@@ -1,24 +1,21 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import Image from './Image';
 
-function ImageList({ tag }) { // Add tag prop for filtering
+function ImageList() {
     const [images, setImages] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [selectedTag, setSelectedTag] = useState(null);
 
     useEffect(() => {
         const fetchImages = async () => {
-            let url = 'http://localhost:5000/images'; // Absolute URL
-            if (tag) {
-                url += `?tag=${tag}`; // Add tag query parameter if tag is provided
-            }
+            setLoading(true);
+            setError(null);
             try {
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const data = await response.json();
-                setImages(data);
+                const params = selectedTag ? { tag: selectedTag } : {};
+                const response = await axios.get('http://localhost:5000/images', { params });
+                setImages(response.data);
             } catch (err) {
                 setError(err);
             } finally {
@@ -27,16 +24,28 @@ function ImageList({ tag }) { // Add tag prop for filtering
         };
 
         fetchImages();
-    }, [tag]); // Add tag to the dependency array
+    }, [selectedTag]);
+
+    const handleTagClick = (tag) => {
+        setSelectedTag(tag);
+    };
+
+    const handleClearFilter = () => {
+        setSelectedTag(null);
+    };
 
     if (loading) return <div>Loading images...</div>;
     if (error) return <div>Error: {error.message}</div>;
+    if (images.length === 0) return <div>No images found.</div>
 
     return (
-        <div className="image-list">
-            {images.map(image => (
-                <Image key={image.image_id} image={image} />
-            ))}
+        <div>
+            {selectedTag && <button onClick={handleClearFilter}>Clear Filter</button>}
+            <div className="image-list">
+                {images.map((image) => (
+                    <Image key={image.image_id} image={image} onTagClick={handleTagClick} />
+                ))}
+            </div>
         </div>
     );
 }
