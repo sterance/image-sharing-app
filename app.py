@@ -211,7 +211,82 @@ def upload_image():
 
     return jsonify({'error': 'An unknown error has occurred'}), 500
 
+@app.route('/images', methods=['GET'])
+def get_images():
+    tag_name = request.args.get('tag')  # Get the tag from the query parameters
 
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cur = conn.cursor()
+        query = """
+            SELECT 
+                images.image_id, 
+                images.image_path, 
+                images.name, 
+                images.description,
+                users.username,
+                GROUP_CONCAT(tags.tag_name) AS tags
+            FROM images
+            JOIN users ON images.user_id = users.user_id
+            LEFT JOIN image_tags ON images.image_id = image_tags.image_id
+            LEFT JOIN tags ON image_tags.tag_id = tags.tag_id
+        """
+        params = ()
+
+        if tag_name: #Add the filter if a tag is provided
+            query += " WHERE tags.tag_name = ?"
+            params = (tag_name,)
+
+        query += " GROUP BY images.image_id"
+        cur.execute(query, params)
+
+        images = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        image_list = []
+        for image in images:
+            image_list.append(dict(image))
+        return jsonify(image_list), 200
+
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        return jsonify({"error": str(e)}), 500
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT 
+                images.image_id, 
+                images.image_path, 
+                images.name, 
+                images.description,
+                users.username,
+                GROUP_CONCAT(tags.tag_name) AS tags
+            FROM images
+            JOIN users ON images.user_id = users.user_id
+            LEFT JOIN image_tags ON images.image_id = image_tags.image_id
+            LEFT JOIN tags ON image_tags.tag_id = tags.tag_id
+            GROUP BY images.image_id
+        """)
+        images = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        image_list = []
+        for image in images:
+            image_list.append(dict(image))
+        return jsonify(image_list), 200
+
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 # Run the app
 if __name__ == '__main__':
