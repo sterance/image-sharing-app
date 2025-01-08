@@ -288,6 +288,43 @@ def get_images():
         print(f"Database error: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/images/<int:image_id>/vote', methods=['POST'])
+def vote(image_id):
+    data = request.get_json()
+    vote_value = data.get('vote') # -1 for downvote, 1 for upvote
+    user_id = 1 # Replace with getting user_id from session
+
+    if vote_value not in [-1, 1]:
+        return jsonify({'error': 'Invalid vote value'}), 400
+
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    try:
+        cur = conn.cursor()
+
+        # Check if the user has already voted on this image
+        cur.execute("SELECT * FROM votes WHERE user_id = ? AND image_id = ?", (user_id, image_id))
+        existing_vote = cur.fetchone()
+
+        if existing_vote:
+            # Update the existing vote
+            cur.execute("UPDATE votes SET vote_value = ? WHERE user_id = ? AND image_id = ?", (vote_value, user_id, image_id))
+        else:
+            # Insert a new vote
+            cur.execute("INSERT INTO votes (user_id, image_id, vote_value) VALUES (?, ?, ?)", (user_id, image_id, vote_value))
+
+        conn.commit()
+        conn.close()
+        return jsonify({'message': 'Vote recorded successfully'}), 200
+
+    except sqlite3.Error as e:
+        conn.rollback()
+        conn.close()
+        print(e)
+        return jsonify({'error': str(e)}), 500
+
 # Run the app
 if __name__ == '__main__':
     create_tables()
