@@ -1,10 +1,11 @@
-from flask import Flask, jsonify, request, send_from_directory #Keep your other imports
+from flask import Flask, jsonify, request, send_from_directory
 import os
 import sqlite3
 import datetime
 import uuid
 import werkzeug
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 
 # Create the Flask app instance
 app = Flask(__name__, static_folder="frontend", static_url_path="/")
@@ -131,7 +132,6 @@ def register():
         conn.close()
         return jsonify({'error': str(e)}), 500
 
-
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
@@ -160,6 +160,58 @@ def login():
     except sqlite3.Error as e:
         conn.close()
         return jsonify({'error': str(e)}), 500
+
+@app.route('/upload', methods=['POST'])
+def upload_image():
+    if 'image' not in request.files:
+        return jsonify({'error': 'No image part'}), 400
+    image = request.files['image']
+    name = request.form.get('name')
+    description = request.form.get('description')
+    tags_string = request.form.get('tags')
+
+    if image.filename == '':
+        return jsonify({'error': 'No selected image'}), 400
+
+    if image:
+        try:
+            filename = secure_filename(str(uuid.uuid4()) + "_" + image.filename) #Generate unique filename
+            image.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+
+            conn = get_db_connection()
+            if conn is None:
+                return jsonify({'error': 'Database connection failed'}), 500
+
+            cursor = conn.cursor()
+            user_id = 1 #Get this from the user's session once authentication is implemented on the front end
+
+            cursor.execute("INSERT INTO images (user_id, image_path, name, description) VALUES (?, ?, ?, ?)", (user_id, filename, name, description))
+            conn.commit()
+
+            image_id = cursor.lastrowid
+
+            if tags_string:
+                tags = [tag.strip() for tag in tags_string.split(',')]
+                for tag in tags:
+                    cursor.execute("INSERT OR IGNORE INTO tags (tag_name) VALUES (?)", (tag,))
+                    cursor.execute("SELECT tag_id FROM tags WHERE tag_name=?", (tag,))
+                    tag_id = cursor.fetchone()['tag_id']
+                    cursor.execute("INSERT OR IGNORE INTO image_tags (image_id, tag_id) VALUES (?, ?)", (image_id, tag_id))
+                conn.commit()
+
+            conn.close()
+
+
+            return jsonify({'message': 'Image uploaded successfully'}), 201
+        except Exception as e:
+            conn.rollback()
+            conn.close()
+            print(e)
+            return jsonify({'error': str(e)}), 500
+
+    return jsonify({'error': 'An unknown error has occurred'}), 500
+
+
 
 # Run the app
 if __name__ == '__main__':
