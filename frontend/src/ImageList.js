@@ -8,7 +8,7 @@ function ImageList({ tag }) { // Add tag prop for filtering
 
     useEffect(() => {
         const fetchImages = async () => {
-            let url = '/images';
+            let url = 'http://localhost:5000/images'; // Absolute URL
             if (tag) {
                 url += `?tag=${tag}`; // Add tag query parameter if tag is provided
             }

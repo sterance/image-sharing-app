@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, request, send_from_directory
+from flask_cors import CORS
 import os
 import sqlite3
 import datetime
@@ -7,9 +8,12 @@ import werkzeug
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
-# Create the Flask app instance
-app = Flask(__name__, static_folder="frontend", static_url_path="/")
+
 UPLOAD_FOLDER = 'uploads'
+
+# Create the Flask app instance
+app = Flask(__name__, static_folder=UPLOAD_FOLDER, static_url_path='/uploads')
+CORS(app)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -93,10 +97,14 @@ def create_tables():
         conn.close()
 
 
-# Define HTML routes
+# Define routes
 @app.route('/', methods=['GET'])
 def index():
     return "Welcome to the Image Sharing App!"
+
+@app.route('/uploads/<path:filename>')
+def serve_static(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/register', methods=['POST'])
 def register():
@@ -243,38 +251,6 @@ def get_images():
         query += " GROUP BY images.image_id"
         cur.execute(query, params)
 
-        images = cur.fetchall()
-        cur.close()
-        conn.close()
-
-        image_list = []
-        for image in images:
-            image_list.append(dict(image))
-        return jsonify(image_list), 200
-
-    except sqlite3.Error as e:
-        print(f"Database error: {e}")
-        return jsonify({"error": str(e)}), 500
-    conn = get_db_connection()
-    if conn is None:
-        return jsonify({"error": "Database connection failed"}), 500
-
-    try:
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT 
-                images.image_id, 
-                images.image_path, 
-                images.name, 
-                images.description,
-                users.username,
-                GROUP_CONCAT(tags.tag_name) AS tags
-            FROM images
-            JOIN users ON images.user_id = users.user_id
-            LEFT JOIN image_tags ON images.image_id = image_tags.image_id
-            LEFT JOIN tags ON image_tags.tag_id = tags.tag_id
-            GROUP BY images.image_id
-        """)
         images = cur.fetchall()
         cur.close()
         conn.close()
